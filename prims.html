@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Interactive MST with Prim's Algorithm</title>
+    <style>
+        body {
+            text-align: center;
+            font-family: Arial, sans-serif;
+            background-color:rgb(189, 219, 219)
+        }
+        #canvasContainer {
+            position: relative;
+            margin: 20px auto;
+            border: 8px solid #1d1c1c;
+            border-radius:10px;
+        }
+        canvas {
+            background-color: #f9f9f9;
+        }
+        #controls {
+            margin-top: 10px;
+            margin-left:5%;
+            margin-right:5%;
+        }
+        #steps {
+            margin-top: 20px;
+            font-size: 14px;
+            text-align: left;
+            display: inline-block;
+            max-width: 400px;
+        }
+
+        button{
+            background-color:green;
+            color:white;
+            font-size:1.3em;
+            padding:10px;
+            padding: left 20px;
+            padding-right:20px;
+            border:none;
+            border-radius:10px;
+        }
+
+        button:hover{
+            background-color:blue
+        }
+
+        .container{
+            display:flex;
+            justify-content: center;
+            align-items: center;
+        }
+    </style>
+</head>
+<body>
+    <h1>Interactive MST with Prim's Algorithm (Step-by-Step) PROVED</h1>
+   <div class="container">
+    <div id="controls">
+        <button id="computeMST">Compute MST</button>
+        <button id="clearCanvas">Clear</button>
+    </div>
+    <div id="steps">
+        <h2>Steps:</h2>
+        <ul id="stepList"></ul>
+    </div>
+    <div id="canvasContainer">
+        <canvas id="graphCanvas" width="800" height="600"></canvas>
+    </div>
+   </div>
+
+    <script>
+        const canvas = document.getElementById('graphCanvas');
+        const ctx = canvas.getContext('2d');
+        const computeMSTButton = document.getElementById('computeMST');
+        const clearButton = document.getElementById('clearCanvas');
+        const stepList = document.getElementById('stepList');
+
+        let nodes = [];
+        let edges = [];
+        let mstEdges = [];
+        let selectedNode = null;
+        let nodeCount = 0;
+
+        const NODE_RADIUS = 10;
+
+        canvas.addEventListener('click', function(event) {
+            const rect = canvas.getBoundingClientRect();
+            const x = event.clientX - rect.left;
+            const y = event.clientY - rect.top;
+
+            // Check if the click is on an existing node
+            let clickedNode = nodes.find(node => Math.hypot(node.x - x, node.y - y) < NODE_RADIUS);
+
+            if (clickedNode) {
+                if (selectedNode && selectedNode !== clickedNode) {
+                    addEdge(selectedNode, clickedNode);
+                    selectedNode = null;
+                    draw();
+                } else {
+                    selectedNode = clickedNode;
+                }
+            } else {
+                addNode(x, y);
+                draw();
+            }
+        });
+
+        computeMSTButton.addEventListener('click', function() {
+            if (nodes.length < 2) {
+                alert('Please add at least two nodes and connect them.');
+                return;
+            }
+            mstEdges = computeMST();
+            draw();
+            showSteps();
+        });
+
+        clearButton.addEventListener('click', function() {
+            nodes = [];
+            edges = [];
+            mstEdges = [];
+            nodeCount = 0;
+            clearCanvas();
+            clearSteps();
+        });
+
+        function addNode(x, y) {
+            nodes.push({ id: nodeCount++, x: x, y: y });
+        }
+
+        /*function addEdge(nodeA, nodeB) {
+            const distance = euclideanDistance(nodeA, nodeB);
+            edges.push({ u: nodeA.id, v: nodeB.id, weight: distance });
+        }*/
+
+        function addEdge(nodeA, nodeB) {
+            const weightInput = prompt(`Enter the weight for the edge between Node ${nodeA.id} and Node ${nodeB.id}:`, "1");
+        
+            // Parse the weight and validate input
+            const weight = parseFloat(weightInput);
+            if (!isNaN(weight) && weight > 0) {
+                edges.push({ u: nodeA.id, v: nodeB.id, weight: weight });
+            } else {
+                alert("Invalid weight. Please enter a positive number.");
+            }
+        }
+        
+
+        function clearCanvas() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+
+        function draw() {
+            clearCanvas();
+            drawEdges();
+            drawNodes();
+            if (mstEdges.length > 0) {
+                drawMST();
+            }
+        }
+
+        function drawEdges() {
+            ctx.strokeStyle = '#999';
+            edges.forEach(edge => {
+                const nodeA = nodes[edge.u];
+                const nodeB = nodes[edge.v];
+                ctx.beginPath();
+                ctx.moveTo(nodeA.x, nodeA.y);
+                ctx.lineTo(nodeB.x, nodeB.y);
+                ctx.stroke();
+                ctx.closePath();
+            });
+        }
+
+        function drawNodes() {
+            nodes.forEach(node => {
+                ctx.beginPath();
+                ctx.arc(node.x, node.y, NODE_RADIUS, 0, 2 * Math.PI);
+                ctx.fillStyle = '#007bff';
+                ctx.fill();
+                ctx.strokeStyle = '#003f7f';
+                ctx.stroke();
+                ctx.fillStyle = '#fff';
+                ctx.font = '14px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(node.id, node.x, node.y);
+            });
+        }
+
+        function drawMST() {
+            ctx.strokeStyle = '#e74c3c';
+            ctx.lineWidth = 2;
+            mstEdges.forEach(edge => {
+                const nodeA = nodes[edge.u];
+                const nodeB = nodes[edge.v];
+                ctx.beginPath();
+                ctx.moveTo(nodeA.x, nodeA.y);
+                ctx.lineTo(nodeB.x, nodeB.y);
+                ctx.stroke();
+                ctx.closePath();
+            });
+            ctx.lineWidth = 1;
+        }
+
+        function computeMST() {
+            const numNodes = nodes.length;
+            const inMST = Array(numNodes).fill(false);
+            const key = Array(numNodes).fill(Infinity);
+            const parent = Array(numNodes).fill(-1);
+
+            key[0] = 0;
+
+            for (let count = 0; count < numNodes - 1; count++) {
+                let min = Infinity;
+                let u = -1;
+                for (let v = 0; v < numNodes; v++) {
+                    if (!inMST[v] && key[v] < min) {
+                        min = key[v];
+                        u = v;
+                    }
+                }
+
+                if (u === -1) break;
+
+                inMST[u] = true;
+
+                for (let v = 0; v < numNodes; v++) {
+                    const edge = edges.find(e => (e.u === u && e.v === v) || (e.u === v && e.v === u));
+                    if (edge && !inMST[v] && edge.weight < key[v]) {
+                        key[v] = edge.weight;
+                        parent[v] = u;
+                    }
+                }
+            }
+
+            const mst = [];
+            for (let v = 1; v < numNodes; v++) {
+                if (parent[v] !== -1) {
+                    mst.push({ u: parent[v], v: v, weight: key[v] });
+                }
+            }
+
+            return mst;
+        }
+
+        function euclideanDistance(nodeA, nodeB) {
+            const dx = nodeA.x - nodeB.x;
+            const dy = nodeA.y - nodeB.y;
+            return Math.sqrt(dx * dx + dy * dy);
+        }
+
+        function showSteps() {
+            clearSteps();
+            stepList.innerHTML = "<h3>Prim's Algorithm Steps:</h3>";
+            mstEdges.forEach((edge, index) => {
+                const listItem = document.createElement('li');
+                listItem.textContent = `Step ${index + 1}: Connect Node ${edge.u} to Node ${edge.v} (Weight: ${edge.weight.toFixed(2)})`;
+                stepList.appendChild(listItem);
+            });
+        }
+
+        function clearSteps() {
+            stepList.innerHTML = '';
+        }
+    </script>
+</body>
+</html>

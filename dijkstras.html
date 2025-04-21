@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shortest Path Visualizer with Dijkstra's Algorithm</title>
+    <style>
+        body { font-family: Arial, sans-serif; display: flex; flex-direction: column; align-items: center; 
+        background-color:rgb(173, 240, 240);
+        }
+        canvas { border: 5px solid black; cursor: crosshair; margin-top: 10px; 
+        border-radius:10px;
+        }
+        table { margin-top: 20px; border-collapse: collapse; }
+        th, td { padding: 5px; border: 1px solid black; text-align: center; }
+        .btn-container { margin-top: 15px; }
+        button { padding: 5px 10px; margin: 0 5px; }
+        .selected { background-color: yellow; }
+
+        button{
+            background-color:green;
+            color:white;
+            padding:10px;
+            font-size:1.3em;
+            border-radius:10px;
+            border:none;
+            padding-left:20px;
+            padding-right:20px;
+        }
+
+        button:hover{
+            background-color:blue;
+        }
+
+        .container{
+            display:flex;
+        }
+
+        .container2{
+            display: grid;
+            grid-template-rows: auto 1fr auto;
+            margin-left:30%;
+        }
+
+        #processTable{
+            margin-left:5%;
+            margin-right:5%;
+        }
+
+        #selectedNodes{
+            margin-left:25%;
+        }
+
+        #b1{
+            margin-bottom:5%;
+            padding:10px;
+            line-height:20px
+        }
+        #find{
+        margin-bottom:5%;
+        }
+
+
+        #b2{
+            padding:10px;
+        }
+        #select{
+            margin-bottom:5%;
+        }
+    </style>
+</head>
+<body>
+    <h2>Shortest Path Visualizer with Dijkstra's Algorithm</h2>
+  <div class="container">
+    <div class="btn-container">
+       <div>
+        <div id="b1">
+            <button onclick="selectStartNode()" id="select">Select Start Node</button>
+            <button onclick="selectEndNode()">Select End Node</button>
+           </div>
+    <div id="b2">
+        <button onclick="findShortestPath()" id="find">Find Shortest Path</button><br>
+        <button onclick="reset()">Reset</button>
+    </div>      
+       </div> 
+    </div>
+    <table id="processTable">
+        <thead>
+            <tr><th>Node</th><th>Distance</th><th>Previous</th></tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+    <canvas id="canvas" width="600" height="400"></canvas>
+  </div>
+  <p id="selectedNodes">Start Node: None | End Node: None</p>
+
+    <script>
+        const canvas = document.getElementById("canvas");
+        const ctx = canvas.getContext("2d");
+        const nodes = [];
+        const edges = [];
+        let selectedNode = null;
+        let startNode = null;
+        let endNode = null;
+        let selectingStart = false;
+        let selectingEnd = false;
+
+        canvas.addEventListener("click", handleCanvasClick);
+
+        function handleCanvasClick(event) {
+            const x = event.offsetX;
+            const y = event.offsetY;
+            const clickedNode = nodes.find(node => Math.hypot(node.x - x, node.y - y) < 10);
+
+            if (selectingStart && clickedNode) {
+                startNode = clickedNode;
+                selectingStart = false;
+                updateSelectedNodes();
+                return;
+            }
+
+            if (selectingEnd && clickedNode) {
+                endNode = clickedNode;
+                selectingEnd = false;
+                updateSelectedNodes();
+                return;
+            }
+
+            if (selectedNode && clickedNode && selectedNode !== clickedNode) {
+                const weight = parseInt(prompt("Enter weight for the edge:", "1"));
+                if (!isNaN(weight)) {
+                    edges.push({ from: selectedNode, to: clickedNode, weight });
+                    drawEdge(selectedNode, clickedNode, weight);
+                }
+                selectedNode = null;
+            } else if (!clickedNode) {
+                addNode(x, y);
+            } else {
+                selectedNode = clickedNode;
+            }
+        }
+
+        function addNode(x, y) {
+            const id = nodes.length;
+            const newNode = { id, x, y };
+            nodes.push(newNode);
+            drawNode(newNode);
+        }
+
+        function drawNode(node) {
+            ctx.beginPath();
+            ctx.arc(node.x, node.y, 10, 0, 2 * Math.PI);
+            ctx.fillStyle = "lightblue";
+            ctx.fill();
+            ctx.strokeText(`Node ${node.id}`, node.x - 15, node.y - 15);
+            ctx.stroke();
+        }
+
+        function drawEdge(nodeA, nodeB, weight, highlight = false) {
+            ctx.beginPath();
+            ctx.moveTo(nodeA.x, nodeA.y);
+            ctx.lineTo(nodeB.x, nodeB.y);
+            ctx.strokeStyle = highlight ? "red" : "black";
+            ctx.lineWidth = highlight ? 2 : 1;
+            ctx.stroke();
+            ctx.fillText(weight, (nodeA.x + nodeB.x) / 2, (nodeA.y + nodeB.y) / 2);
+        }
+
+        function reset() {
+            nodes.length = 0;
+            edges.length = 0;
+            startNode = null;
+            endNode = null;
+            selectedNode = null;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            document.querySelector("#processTable tbody").innerHTML = "";
+            updateSelectedNodes();
+        }
+
+        function selectStartNode() {
+            selectingStart = true;
+            selectingEnd = false;
+        }
+
+        function selectEndNode() {
+            selectingEnd = true;
+            selectingStart = false;
+        }
+
+        function updateSelectedNodes() {
+            document.getElementById("selectedNodes").innerText = `Start Node: ${startNode ? startNode.id : "None"} | End Node: ${endNode ? endNode.id : "None"}`;
+        }
+
+        async function findShortestPath() {
+            if (nodes.length === 0 || startNode === null || endNode === null) return;
+
+            const distance = Array(nodes.length).fill(Infinity);
+            const previous = Array(nodes.length).fill(null);
+            const visited = Array(nodes.length).fill(false);
+            distance[startNode.id] = 0;
+
+            const processTable = document.querySelector("#processTable tbody");
+            processTable.innerHTML = "";
+
+            while (true) {
+                let u = -1;
+                for (let i = 0; i < nodes.length; i++) {
+                    if (!visited[i] && (u === -1 || distance[i] < distance[u])) {
+                        u = i;
+                    }
+                }
+
+                if (u === -1 || distance[u] === Infinity) break;
+                visited[u] = true;
+
+                updateTable(u, distance[u], previous[u]);
+
+                if (u === endNode.id) {
+                    highlightShortestPath(previous);
+                    break;
+                }
+
+                for (const edge of edges) {
+                    if (edge.from.id === u || edge.to.id === u) {
+                        const v = edge.from.id === u ? edge.to.id : edge.from.id;
+                        if (!visited[v] && distance[u] + edge.weight < distance[v]) {
+                            distance[v] = distance[u] + edge.weight;
+                            previous[v] = u;
+                            drawEdge(nodes[u], nodes[v], edge.weight, true);  // Highlight current edge
+                        }
+                    }
+                }
+
+                await sleep(1000);  // Delay for visualization
+                drawGraph();  // Redraw graph to remove highlights
+            }
+        }
+
+        function updateTable(nodeId, distance, previous) {
+            const row = document.createElement("tr");
+            row.innerHTML = `
+                <td>Node ${nodeId}</td>
+                <td>${distance}</td>
+                <td>${previous !== null ? "Node " + previous : "-"}</td>
+            `;
+            document.querySelector("#processTable tbody").appendChild(row);
+        }
+
+        function highlightShortestPath(previous) {
+            let current = endNode.id;
+            while (current !== null && previous[current] !== null) {
+                const from = nodes[previous[current]];
+                const to = nodes[current];
+                const weight = edges.find(edge => (edge.from.id === from.id && edge.to.id === to.id) ||
+                                                   (edge.from.id === to.id && edge.to.id === from.id)).weight;
+                drawEdge(from, to, weight, true);  // Highlight edge in shortest path
+                current = previous[current];
+            }
+        }
+
+        function drawGraph() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            nodes.forEach(node => drawNode(node));
+            edges.forEach(edge => drawEdge(edge.from, edge.to, edge.weight));
+        }
+
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+    </script>
+</body>
+</html>

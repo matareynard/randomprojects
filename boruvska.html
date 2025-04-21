@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Boruvka's Algorithm</title>
+    <style>
+        body { text-align: center; font-family: Arial, sans-serif; 
+        background-color:lightblue;
+        }
+        #canvas { border: 5px solid black; cursor: pointer; margin: 10px 0; 
+        border-radius:10px;
+    margin-left:10%;
+    }
+        #controls { margin: 10px; }
+        button, input { 
+            margin: 5px; 
+            padding:10px;
+            font-size:1.2em;
+            border-radius:10px;
+            padding-left:25px;
+            padding-right:25px; 
+            background-color:green;
+            color:white;
+            border:none;
+            cursor:pointer;
+        }
+
+        button:hover{
+            background-color:blue;
+
+        }
+
+        #title{
+        font-size:2em;
+        }
+
+        .container{
+            display:flex;
+        }
+
+        .container2{
+            display: grid;
+            grid-template-rows: auto 1fr auto;
+            margin-left:30%;
+        }
+
+        #minimum{
+            margin-left:30%;
+        }
+    </style>
+</head>
+<body>
+    <h2 id="title">Boruvka's Algorithm</h2>
+  <div class="container">
+    <div id="controls">
+       <div class="container2">
+        <button onclick="addNode()">Add Node</button>
+        <button onclick="addEdge()">Add Edge</button>
+        <input type="number" id="edgeWeight" placeholder="Enter weight" min="1" style="display: none;">
+        <button onclick="runBoruvka()">Run Boruvka's Algorithm</button>
+       </div>
+        <h3 id="minimum">Minimum Spanning Tree (MST) Edges</h3>
+    </div>
+    <canvas id="canvas" width="600" height="400"></canvas>
+    <ul id="mstDisplay"></ul>
+    <h3 id="totalMSTWeight" style="display: none;"></h3>
+  </div>
+  <p>Click "Add Node" and then click on the canvas to place nodes. Click "Add Edge", select two nodes, and enter a weight to connect them.</p>
+
+    <script>
+        const canvas = document.getElementById("canvas");
+        const ctx = canvas.getContext("2d");
+        const edgeWeightInput = document.getElementById("edgeWeight");
+        const mstDisplay = document.getElementById("mstDisplay");
+        const totalMSTWeightDisplay = document.getElementById("totalMSTWeight");
+
+        const nodes = [];
+        const edges = [];
+        let mode = null;
+        let selectedNodes = [];
+
+        function drawNode(x, y, label) {
+            ctx.beginPath();
+            ctx.arc(x, y, 20, 0, 2 * Math.PI);
+            ctx.fillStyle = "lightblue";
+            ctx.fill();
+            ctx.stroke();
+            ctx.fillStyle = "black";
+            ctx.fillText(label, x - 5, y + 5);
+        }
+
+        function drawEdge(node1, node2, weight, color = "black") {
+            ctx.beginPath();
+            ctx.moveTo(node1.x, node1.y);
+            ctx.lineTo(node2.x, node2.y);
+            ctx.strokeStyle = color;
+            ctx.stroke();
+            ctx.fillStyle = "black";
+            ctx.fillText(weight, (node1.x + node2.x) / 2, (node1.y + node2.y) / 2);
+        }
+
+        function redrawCanvas() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            edges.forEach(edge => drawEdge(edge.node1, edge.node2, edge.weight, edge.inMST ? "green" : "black"));
+            nodes.forEach(node => drawNode(node.x, node.y, node.label));
+        }
+
+        function addNode() {
+            mode = "addNode";
+        }
+
+        function addEdge() {
+            mode = "addEdge";
+            selectedNodes = []; // Reset selected nodes for new edge
+            edgeWeightInput.style.display = "none"; // Hide weight input initially
+        }
+
+        function runBoruvka() {
+            if (nodes.length === 0 || edges.length === 0) return;
+
+            let parent = Array(nodes.length).fill(-1);
+            let mstEdges = [];
+            let totalWeight = 0;
+            let components = nodes.map((node, index) => index); // Initially, each node is its own component
+
+            while (true) {
+                let cheapest = Array(nodes.length).fill(null); // Store the cheapest edge for each component
+
+                // Find the cheapest edge for each component
+                for (const edge of edges) {
+                    const { node1, node2 } = edge;
+                    const component1 = components[nodes.indexOf(node1)];
+                    const component2 = components[nodes.indexOf(node2)];
+
+                    if (component1 !== component2) { // Only consider edges between different components
+                        if (cheapest[component1] === null || edge.weight < cheapest[component1].weight) {
+                            cheapest[component1] = edge; // Update the cheapest edge for component1
+                        }
+                        if (cheapest[component2] === null || edge.weight < cheapest[component2].weight) {
+                            cheapest[component2] = edge; // Update the cheapest edge for component2
+                        }
+                    }
+                }
+
+                let hasNewEdges = false;
+
+                // Add the cheapest edges to the MST
+                for (let i = 0; i < cheapest.length; i++) {
+                    if (cheapest[i] !== null) {
+                        const edge = cheapest[i];
+                        const { node1, node2 } = edge;
+                        const component1 = components[nodes.indexOf(node1)];
+                        const component2 = components[nodes.indexOf(node2)];
+
+                        // Only add edge if it connects different components
+                        if (component1 !== component2) {
+                            mstEdges.push(edge);
+                            totalWeight += edge.weight;
+                            edge.inMST = true;
+                            hasNewEdges = true;
+
+                            // Union components
+                            for (let j = 0; j < components.length; j++) {
+                                if (components[j] === component2) {
+                                    components[j] = component1; // Merge component2 into component1
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (!hasNewEdges) break; // No more edges can be added, MST is complete
+            }
+
+            redrawCanvas();
+
+            // Display the MST edges and total weight
+            mstDisplay.innerHTML = "";
+            totalMSTWeightDisplay.style.display = "none"; // Hide total weight initially
+
+            mstEdges.forEach(edge => {
+                const listItem = document.createElement("li");
+                listItem.textContent = `${edge.node1.label} - ${edge.node2.label}: ${edge.weight}`;
+                mstDisplay.appendChild(listItem);
+            });
+
+            totalMSTWeightDisplay.textContent = `Total MST Weight: ${totalWeight}`;
+            totalMSTWeightDisplay.style.display = "block"; // Show total weight
+            alert("Borůvka's Algorithm completed.");
+        }
+
+        canvas.addEventListener("click", (event) => {
+            const rect = canvas.getBoundingClientRect();
+            const x = event.clientX - rect.left;
+            const y = event.clientY - rect.top;
+
+            if (mode === "addNode") {
+                const label = String.fromCharCode(65 + nodes.length);
+                nodes.push({ x, y, label });
+                redrawCanvas();
+            } else if (mode === "addEdge") {
+                const clickedNode = nodes.find(node => Math.hypot(node.x - x, node.y - y) < 20);
+
+                if (clickedNode) {
+                    if (selectedNodes.length < 2) {
+                        selectedNodes.push(clickedNode); // Add clicked node to selected nodes
+
+                        if (selectedNodes.length === 2) {
+                            edgeWeightInput.style.display = "inline"; // Show weight input after two nodes are selected
+                            edgeWeightInput.focus();
+
+                            edgeWeightInput.onchange = () => {
+                                const weight = parseInt(edgeWeightInput.value, 10);
+                                edges.push({ node1: selectedNodes[0], node2: selectedNodes[1], weight, inMST: false });
+                                selectedNodes = []; // Reset selected nodes after edge is created
+                                edgeWeightInput.style.display = "none"; // Hide input
+                                edgeWeightInput.value = ""; // Clear input
+                                redrawCanvas();
+                            };
+                        }
+                    }
+                }
+            }
+        });
+    </script>
+</body>
+</html>

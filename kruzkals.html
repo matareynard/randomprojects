@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kruskal's Algorithm Visualizer</title>
+  <style>
+    canvas { border: 10px solid green;
+    border-radius:10px; }
+    button { margin-top: 10px; }
+    body{
+        background-color:lightcyan;
+    }
+    button{
+        background-color:green;
+        color:white;
+        font-size:1.3em;
+        padding:10px;
+        padding-left:10px;
+        padding-right:10px;
+        border-radius:10px;
+        border:none;
+    }
+     
+    .container{
+        display:flex;
+        justify-content: center;
+        align-items: center;
+    }
+
+    button:hover{
+        background-color:blue;
+    }
+
+    .buttons{
+        margin-right:5%;
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+   <div class="buttons">
+    <button onclick="toggleMode()">Switch to Line Graphing</button>
+    <button onclick="findMST()">Find MST</button>
+   </div>
+  <canvas id="graphCanvas" width="600" height="400"></canvas>
+</div>
+
+  <p id="mstWeight"></p> <!-- Paragraph to display MST total weight -->
+
+  <script>
+    const canvas = document.getElementById('graphCanvas');
+    const ctx = canvas.getContext('2d');
+    let nodes = [];
+    let edges = [];
+    let isNodeCreationMode = true;
+    let selectedNode = null;
+    let nodeCounter = 1;
+    const radius = 20;
+
+    function toggleMode() {
+      isNodeCreationMode = !isNodeCreationMode;
+      const button = document.querySelector("button");
+      button.textContent = isNodeCreationMode ? "Switch to Line Graphing" : "Switch to Node Creation";
+      selectedNode = null;
+    }
+
+    function drawNode(node) {
+      ctx.beginPath();
+      ctx.arc(node.x, node.y, radius, 0, 2 * Math.PI);
+      ctx.fillStyle = 'blue';
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = 'black'; // Set text color to black for better contrast
+      ctx.font = '14px Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(node.id, node.x, node.y);  // Draw node ID in the center
+    }
+
+    function drawEdge(edge, color = 'gray') {
+      const { node1, node2, weight } = edge;
+      const dx = node2.x - node1.x;
+      const dy = node2.y - node1.y;
+      const distance = Math.hypot(dx, dy);
+      const normDx = dx / distance;
+      const normDy = dy / distance;
+      const startX = node1.x + normDx * radius;
+      const startY = node1.y + normDy * radius;
+      const endX = node2.x - normDx * radius;
+      const endY = node2.y - normDy * radius;
+
+      // Draw line
+      ctx.beginPath();
+      ctx.moveTo(startX, startY);
+      ctx.lineTo(endX, endY);
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // Draw weight label
+      const midX = (startX + endX) / 2;
+      const midY = (startY + endY) / 2;
+      ctx.fillStyle = 'red';
+      ctx.font = '12px Arial';
+      ctx.fillText(weight, midX, midY); // Draw the weight in red at the edge's midpoint
+    }
+
+    function redraw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear canvas
+      edges.forEach(edge => drawEdge(edge, edge.color || 'gray'));
+      nodes.forEach(node => drawNode(node));
+    }
+
+    canvas.addEventListener('click', (e) => {
+      const x = e.offsetX;
+      const y = e.offsetY;
+
+      if (isNodeCreationMode) {
+        const node = { x, y, id: nodeCounter++ };
+        nodes.push(node);
+        redraw();
+      } else {
+        const clickedNode = nodes.find(node => Math.hypot(node.x - x, node.y - y) < radius);
+        
+        if (clickedNode) {
+          if (selectedNode) {
+            const weight = parseInt(prompt("Enter the weight for this edge:"), 10);
+            if (isNaN(weight)) return alert("Invalid weight! Please enter a number.");
+            edges.push({ node1: selectedNode, node2: clickedNode, weight });
+            selectedNode = null;
+            redraw();
+          } else {
+            selectedNode = clickedNode;
+          }
+        }
+      }
+    });
+
+    function findMST() {
+      edges.sort((a, b) => a.weight - b.weight);
+      const parent = {};
+      const find = (n) => (parent[n] === n ? n : (parent[n] = find(parent[n])));
+      const union = (n1, n2) => { parent[find(n1)] = find(n2); };
+
+      nodes.forEach(node => (parent[node.id] = node.id));
+      const mstEdges = [];
+      let totalWeight = 0;
+
+      for (const edge of edges) {
+        const { node1, node2, weight } = edge;
+        if (find(node1.id) !== find(node2.id)) {
+          mstEdges.push(edge);
+          union(node1.id, node2.id);
+          edge.color = 'violet'; // Highlight MST edge
+          totalWeight += weight; // Accumulate the weight
+        }
+      }
+
+      if (mstEdges.length !== nodes.length - 1) {
+        alert("The graph is not fully connected. MST may not cover all nodes.");
+      } else {
+        document.getElementById("mstWeight").textContent = "Total MST Weight: " + totalWeight;
+        alert("MST found and highlighted!");
+      }
+      redraw(); // Redraw to update edge colors and show MST
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dial's Algorithm Visualization</title>
+<style>
+  body { font-family: Arial, sans-serif; display: flex; flex-direction: column; align-items: center; 
+   background-color:rgb(186, 226, 213)
+}
+  #canvas { border: 8px solid black; margin-top: 20px; cursor: pointer; 
+  border-radius:10px;
+}
+  .controls { display: flex; flex-direction: column; margin-top: 10px; 
+margin-right:5%;
+}
+  table { margin-top: 20px; border-collapse: collapse; }
+  table, th, td { border: 1px solid #ddd; padding: 8px; }
+  tr.highlight { background-color: #ffeb3b; }
+  #totalDistance { font-weight: bold; margin-top: 15px; }
+
+  #title{
+    font-size:3em;
+  }
+
+  button{
+    background-color:green;
+    color:white;
+    font-size:1.5em;
+    margin-bottom:10px;
+    border-radius:10px;
+    padding:10px;
+    border:none;
+  }
+
+  button:hover{
+    background-color:blue;
+  }
+
+  .container{
+    display:flex;
+    justify-content: center;
+    align-items: center;
+  }
+
+  #dialsTable{
+    margin-right:5%;
+  }
+</style>
+</head>
+<body>
+
+<h1 id="title">Dial's Algorithm Visualization</h1>
+<div class="container">
+<div class="controls">
+    <button onclick="setAsStart()">Set as Start Node</button>
+    <button onclick="setAsEnd()">Set as End Node</button>
+    <button onclick="startAlgorithm()">Start Dial's Algorithm</button>
+  </div>
+  <table id="dialsTable">
+    <thead>
+      <tr><th>Bucket</th><th>Nodes</th><th>Distances</th></tr>
+    </thead>
+    <tbody id="tableBody">
+      <!-- Dynamic table rows -->
+    </tbody>
+  </table>
+  <div id="totalDistance"></div>
+<canvas id="canvas" width="600" height="400"></canvas>
+</div>
+
+
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const nodes = [];
+const edges = [];
+let nodeId = 0;
+let selectedNode = null; // Track the first selected node for connections
+let startNode = null;    // Starting node for the algorithm
+let endNode = null;      // End node for display of shortest path
+
+let distances = [];
+let buckets = [];
+let predecessors = [];   // Store predecessors for shortest path tracing
+let currentBucket = 0;
+
+// Node and edge creation on canvas
+canvas.addEventListener('click', function(event) {
+  const x = event.offsetX;
+  const y = event.offsetY;
+
+  const clickedNode = getNodeAtPosition(x, y);
+  
+  if (clickedNode) {
+    if (selectedNode && selectedNode !== clickedNode) {
+      if (edgeExists(selectedNode, clickedNode)) {
+        alert("These nodes are already connected.");
+      } else {
+        const weight = parseInt(prompt("Enter weight for the edge:", "1")) || 1;
+        edges.push({ from: selectedNode, to: clickedNode, weight });
+      }
+      selectedNode = null; // Reset selected node
+    } else {
+      // Otherwise, set this node as the selected one
+      selectedNode = clickedNode;
+    }
+  } else {
+    // Add a new node if clicked on empty space
+    const newNode = { id: nodeId++, x, y };
+    nodes.push(newNode);
+  }
+  
+  drawGraph();
+});
+
+function edgeExists(nodeA, nodeB) {
+  return edges.some(edge => 
+    (edge.from === nodeA && edge.to === nodeB) || 
+    (edge.from === nodeB && edge.to === nodeA)
+  );
+}
+
+function getNodeAtPosition(x, y) {
+  return nodes.find(node => Math.hypot(node.x - x, node.y - y) < 20);
+}
+
+function drawGraph() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  
+  // Draw edges with weights
+  for (const { from, to, weight } of edges) {
+    ctx.beginPath();
+    ctx.moveTo(from.x, from.y);
+    ctx.lineTo(to.x, to.y);
+    ctx.strokeStyle = "black";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.fillStyle = 'black';
+    ctx.fillText(weight, (from.x + to.x) / 2, (from.y + to.y) / 2);
+  }
+  
+  // Draw nodes with IDs
+  for (const { x, y, id } of nodes) {
+    ctx.beginPath();
+    ctx.arc(x, y, 15, 0, Math.PI * 2);
+    
+    // Color nodes based on start or end selection
+    if (id === startNode?.id) {
+      ctx.fillStyle = "lightgreen";
+    } else if (id === endNode?.id) {
+      ctx.fillStyle = "lightcoral";
+    } else {
+      ctx.fillStyle = "white";
+    }
+    
+    ctx.fill();
+    ctx.stroke();
+
+    // Display node IDs in a visible color
+    ctx.fillStyle = "blue";
+    ctx.fillText(id, x - 5, y + 5);
+  }
+}
+
+// Set selected node as start node
+function setAsStart() {
+  if (selectedNode) {
+    startNode = selectedNode;
+    drawGraph();
+  } else {
+    alert("Please select a node first.");
+  }
+}
+
+// Set selected node as end node
+function setAsEnd() {
+  if (selectedNode) {
+    endNode = selectedNode;
+    drawGraph();
+  } else {
+    alert("Please select a node first.");
+  }
+}
+
+// Start Dial's Algorithm
+function startAlgorithm() {
+  if (!startNode) {
+    alert("Please set a start node.");
+    return;
+  }
+
+  distances = Array(nodes.length).fill(Infinity);
+  predecessors = Array(nodes.length).fill(null);
+  distances[startNode.id] = 0;
+  buckets = Array(10).fill().map(() => []);
+  buckets[0].push(startNode.id);
+  currentBucket = 0;
+
+  updateTable();
+  stepAlgorithm();
+}
+
+// Dial's Algorithm step-by-step
+function stepAlgorithm() {
+  while (currentBucket < buckets.length && buckets[currentBucket].length === 0) {
+    currentBucket++;
+  }
+  if (currentBucket >= buckets.length) {
+    highlightShortestPath(); // After finishing, highlight the shortest path
+    return;
+  }
+
+  const uId = buckets[currentBucket].shift();
+  const u = nodes[uId];
+  const currentDist = distances[uId];
+
+  for (const edge of edges) {
+    if (edge.from.id === uId) {
+      const vId = edge.to.id;
+      const newDist = currentDist + edge.weight;
+      if (newDist < distances[vId]) {
+        const prevDist = distances[vId];
+        distances[vId] = newDist;
+        predecessors[vId] = uId; // Track predecessor for shortest path
+
+        if (prevDist !== Infinity) {
+          buckets[prevDist % buckets.length] = buckets[prevDist % buckets.length].filter(id => id !== vId);
+        }
+        buckets[newDist % buckets.length].push(vId);
+      }
+    }
+  }
+
+  updateTable();
+  highlightNode(uId);
+  setTimeout(stepAlgorithm, 1000); // Proceed to next step
+}
+
+// Update Dial's Table
+function updateTable() {
+  const tableBody = document.getElementById('tableBody');
+  tableBody.innerHTML = ''; // Clear previous entries (for step-by-step only)
+
+  buckets.forEach((bucket, i) => {
+    const row = document.createElement('tr');
+    row.innerHTML = `<td>${i}</td><td>${bucket.join(', ')}</td><td>${bucket.map(id => distances[id]).join(', ')}</td>`;
+    tableBody.appendChild(row);
+  });
+}
+
+// Highlight current node in visualization
+function highlightNode(nodeId) {
+  drawGraph();
+  const node = nodes[nodeId];
+  if (node) {
+    ctx.beginPath();
+    ctx.arc(node.x, node.y, 20, 0, Math.PI * 2);
+    ctx.strokeStyle = "red";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+}
+
+// Highlight the shortest path from start to end and display total distance
+function highlightShortestPath() {
+  if (!endNode || distances[endNode.id] === Infinity) {
+    alert("No path to the end node.");
+    return;
+  }
+
+  let pathNodeId = endNode.id;
+  ctx.strokeStyle = "green";
+  ctx.lineWidth = 3;
+  let totalDistance = distances[endNode.id];
+
+  while (pathNodeId !== startNode.id) {
+    const predNodeId = predecessors[pathNodeId];
+    if (predNodeId === null) break;
+
+    const fromNode = nodes[predNodeId];
+    const toNode = nodes[pathNodeId];
+    ctx.beginPath();
+    ctx.moveTo(fromNode.x, fromNode.y);
+    ctx.lineTo(toNode.x, toNode.y);
+    ctx.stroke();
+
+    pathNodeId = predNodeId;
+  }
+
+  // Display total distance after the algorithm finishes
+  document.getElementById('totalDistance').textContent = `Total Distance: ${totalDistance}`;
+}
+</script>
+
+</body>
+</html>

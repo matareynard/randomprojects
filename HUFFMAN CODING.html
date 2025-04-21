@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Huffman Tree Visualization</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        flex-direction: column;
+        height: 100vh;
+        background-color: #f4f4f4;
+      }
+      canvas {
+        border: 1px solid #333;
+        background-color: #fff;
+      }
+      #controls {
+        position: absolute;
+        top: 20px;
+        left: 20px;
+      }
+      button {
+        margin: 5px;
+        padding: 10px;
+        font-size: 16px;
+        cursor: pointer;
+      }
+      #huffmanTable {
+        margin-top: 20px;
+        border-collapse: collapse;
+        width: 80%;
+      }
+      #huffmanTable th,
+      #huffmanTable td {
+        border: 1px solid #ddd;
+        padding: 8px;
+        text-align: center;
+      }
+      #huffmanTable th {
+        background-color: #f2f2f2;
+      }
+      input {
+        margin: 5px;
+        padding: 5px;
+        font-size: 14px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="controls">
+      <h2>Enter Characters and Frequencies</h2>
+      <div id="inputSection">
+        <label for="charInput">Character:</label>
+        <input
+          type="text"
+          id="charInput"
+          maxlength="1"
+          placeholder="Enter a character"
+        />
+        <label for="freqInput">Frequency:</label>
+        <input type="number" id="freqInput" placeholder="Enter frequency" />
+        <button onclick="addCharacter()">Add Character</button>
+      </div>
+      <br />
+      <button onclick="startHuffmanTree()">
+        Start Huffman Tree Visualization
+      </button>
+    </div>
+
+    <canvas id="graph" width="800" height="600"></canvas>
+
+    <table id="huffmanTable" style="display: none">
+      <thead>
+        <tr>
+          <th>Character</th>
+          <th>Frequency</th>
+          <th>Code (Bits)</th>
+          <th>Total Bits</th>
+        </tr>
+      </thead>
+      <tbody id="tableBody">
+        <!-- Table rows will be populated dynamically -->
+      </tbody>
+    </table>
+
+    <script>
+      const canvas = document.getElementById("graph");
+      const ctx = canvas.getContext("2d");
+
+      // Array to store user input characters and frequencies
+      let frequency = {};
+      let huffmanCodes = {};
+
+      // Huffman tree node definition
+      class HuffmanNode {
+        constructor(char, freq) {
+          this.char = char;
+          this.freq = freq;
+          this.left = null;
+          this.right = null;
+        }
+      }
+
+      // Function to build Huffman codes
+      function buildCodes(node, code = "", huffmanCodes = {}) {
+        if (node === null) return;
+
+        if (node.char !== null) {
+          huffmanCodes[node.char] = code;
+        }
+
+        buildCodes(node.left, code + "0", huffmanCodes);
+        buildCodes(node.right, code + "1", huffmanCodes);
+
+        return huffmanCodes;
+      }
+
+      // Function to calculate total bits used
+      function calculateTotalBits(huffmanCodes, frequency) {
+        let totalBits = 0;
+        for (const char in huffmanCodes) {
+          totalBits += huffmanCodes[char].length * frequency[char];
+        }
+        return totalBits;
+      }
+
+      // Function to start Huffman tree creation
+      function startHuffmanTree() {
+        const nodes = Object.keys(frequency).map(
+          (char) => new HuffmanNode(char, frequency[char])
+        );
+
+        // Build the Huffman tree using a priority queue
+        while (nodes.length > 1) {
+          nodes.sort((a, b) => a.freq - b.freq);
+          const left = nodes.shift();
+          const right = nodes.shift();
+          const merged = new HuffmanNode(null, left.freq + right.freq);
+          merged.left = left;
+          merged.right = right;
+          nodes.push(merged);
+        }
+
+        const huffmanTree = nodes[0]; // Root of the tree
+        huffmanCodes = buildCodes(huffmanTree);
+
+        const totalBits = calculateTotalBits(huffmanCodes, frequency);
+        drawTree(huffmanTree, canvas.width / 2, 50, 150);
+
+        // Display the Huffman table
+        const tableBody = document.getElementById("tableBody");
+        tableBody.innerHTML = "";
+
+        for (const char in frequency) {
+          const row = document.createElement("tr");
+          const totalBitsForChar = huffmanCodes[char].length * frequency[char];
+          row.innerHTML = `
+          <td>${char}</td>
+          <td>${frequency[char]}</td>
+          <td>${huffmanCodes[char]}</td>
+          <td>${totalBitsForChar}</td>
+      `;
+          tableBody.appendChild(row);
+        }
+
+        const totalRow = document.createElement("tr");
+        totalRow.innerHTML = `
+      <td colspan="3"><strong>Total Bits</strong></td>
+      <td><strong>${totalBits}</strong></td>
+  `;
+        tableBody.appendChild(totalRow);
+
+        // Show the table
+        document.getElementById("huffmanTable").style.display = "block";
+      }
+
+      // Function to draw the Huffman tree
+      const nodePositions = [];
+      function drawTree(node, x, y, offsetX) {
+        if (node === null) return;
+
+        const nodeRadius = 20;
+        nodePositions.push({ node, x, y });
+
+        ctx.beginPath();
+        ctx.arc(x, y, nodeRadius, 0, Math.PI * 2);
+        ctx.fillStyle = "#3498db";
+        ctx.fill();
+        ctx.strokeStyle = "#333";
+        ctx.stroke();
+        ctx.fillStyle = "#fff";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+
+        // Display character for leaf nodes, and frequency for internal nodes
+        if (node.char) {
+          ctx.fillText(node.char, x, y); // Display character
+        } else {
+          ctx.fillText(node.freq, x, y); // Display frequency for internal nodes
+        }
+
+        ctx.closePath();
+
+        if (node.left) {
+          const leftX = x - offsetX;
+          const leftY = y + 100;
+          ctx.beginPath();
+          ctx.moveTo(x, y + nodeRadius);
+          ctx.lineTo(leftX, leftY - nodeRadius);
+          ctx.stroke();
+          ctx.closePath();
+          drawTree(node.left, leftX, leftY, offsetX / 2);
+        }
+        if (node.right) {
+          const rightX = x + offsetX;
+          const rightY = y + 100;
+          ctx.beginPath();
+          ctx.moveTo(x, y + nodeRadius);
+          ctx.lineTo(rightX, rightY - nodeRadius);
+          ctx.stroke();
+          ctx.closePath();
+          drawTree(node.right, rightX, rightY, offsetX / 2);
+        }
+      }
+
+      // Function to add character and frequency to the frequency object
+      function addCharacter() {
+        const charInput = document.getElementById("charInput").value;
+        const freqInput = parseInt(document.getElementById("freqInput").value);
+
+        if (charInput && freqInput) {
+          frequency[charInput] = (frequency[charInput] || 0) + freqInput;
+          document.getElementById("charInput").value = "";
+          document.getElementById("freqInput").value = "";
+          alert(`Added: ${charInput} with frequency ${freqInput}`);
+        } else {
+          alert("Please enter both character and frequency!");
+        }
+      }
+    </script>
+  </body>
+</html>
